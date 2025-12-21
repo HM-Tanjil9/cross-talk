@@ -4,6 +4,7 @@ import crudRepository from './crudRepository.js';
 import ClientError from '../utils/errors/clientError.js';
 import { StatusCodes } from 'http-status-codes';
 import User from '../schema/user.js';
+import channelRepository from './channelRepository.js';
 
 const workspaceRepository = {
   ...crudRepository(Workspace),
@@ -66,8 +67,39 @@ const workspaceRepository = {
     await workspace.save();
     return workspace;
   },
-  addChannelToWorkspace: async function (workspaceId, channelId) {},
-  fetchAllWorkspacesByMemberId: async function (memberId) {}
+  addChannelToWorkspace: async function (workspaceId, channelName) {
+    const workspace =
+      await Workspace.findById(workspaceId).populate('channels');
+    if (!workspace) {
+      throw new ClientError({
+        explanation: 'Invalid data sent from client',
+        message: `Workspace with id ${workspaceId} not found`,
+        statusCode: StatusCodes.NOT_FOUND
+      });
+    }
+    const channelExists = workspace.channels.find(
+      (channel) => channel.name === channelName
+    );
+    if (channelExists) {
+      throw new ClientError({
+        explanation: 'Invalid data sent from client',
+        message: `Channel already exists in the workspace`,
+        statusCode: StatusCodes.FORBIDDEN
+      });
+    }
+    const channel = await channelRepository.create({
+      name: channelName
+    });
+    workspace.channels.push(channel);
+    await workspace.save();
+    return workspace;
+  },
+  fetchAllWorkspacesByMemberId: async function (memberId) {
+    const workspaces = await Workspace.find({
+      'members.memberId': memberId
+    }).populate('members.memberId', 'username email avatar');
+    return workspaces;
+  }
 };
 
 export default workspaceRepository;
